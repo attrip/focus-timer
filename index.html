@@ -172,7 +172,8 @@
 
   // --- State ---
   let timerId = null, totalSeconds = 1500, currentTime = 1500, isRunning = false;
-  let announced3mins = false, announced6mins = false, announced10mins = false, announced15mins = false, announced20mins = false, announced30mins = false;
+  // マイルストーン通知（3/6/10/15/20分）
+  let announced3 = false, announced6 = false, announced10 = false, announced15 = false, announced20 = false;
   let history = [], totalChars = 0, isComposing = false;
   const LOG_STORAGE_KEY = 'writer_logs';
 
@@ -180,6 +181,20 @@
   function speak(text){
     if(!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; window.speechSynthesis.speak(u);
+  }
+  function ensureNotificationPermission(){
+    if('Notification' in window && Notification.permission === 'default'){
+      Notification.requestPermission();
+    }
+  }
+  function notifyUser(title, body){
+    // Desktop notification (where supported), plus voice as fallback/extra
+    try{
+      if('Notification' in window && Notification.permission === 'granted'){
+        new Notification(title, { body, silent:false });
+      }
+    }catch(e){ /* ignore */ }
+    speak(`${title}。${body||''}`);
   }
   function updateDisplays(){
     const mm = Math.floor(currentTime/60).toString().padStart(2,'0');
@@ -194,21 +209,24 @@
   }
   function checkAnnouncements(){
     const e = totalSeconds - currentTime;
-    if(totalSeconds>=180 && e>=180 && !announced3mins){speak('3分経過'); announced3mins=true;}
-    if(totalSeconds>=360 && e>=360 && !announced6mins){speak('6分経過'); announced6mins=true;}
-    if(totalSeconds>=600 && e>=600 && !announced10mins){speak('10分経過'); announced10mins=true;}
-    if(totalSeconds>=900 && e>=900 && !announced15mins){speak('15分経過'); announced15mins=true;}
-    if(totalSeconds>=1200 && e>=1200 && !announced20mins){speak('20分経過'); announced20mins=true;}
-    if(totalSeconds>=1800 && e>=1800 && !announced30mins){speak('30分経過'); announced30mins=true;}
+    if(totalSeconds>=180 && e>=180 && !announced3){ notifyUser('3分経過', 'ウォームアップ完了'); announced3=true; }
+    if(totalSeconds>=360 && e>=360 && !announced6){ notifyUser('6分経過', '集中に乗りました'); announced6=true; }
+    if(totalSeconds>=600 && e>=600 && !announced10){ notifyUser('10分経過', '良いペースです'); announced10=true; }
+    if(totalSeconds>=900 && e>=900 && !announced15){ notifyUser('15分経過', 'その調子！'); announced15=true; }
+    if(totalSeconds>=1200 && e>=1200 && !announced20){ notifyUser('20分経過', 'ラストスパート'); announced20=true; }
   }
   function startTimer(){
     if(isRunning) return; isRunning=true; startStopBtn.textContent='ストップ'; writerInput.focus();
+    ensureNotificationPermission();
     timerId=setInterval(()=>{
       currentTime--; updateDisplays();
       if(currentTime>=0){checkAnnouncements();}
       else{
         clearInterval(timerId);
+        // 終了通知（音・デスクトップ通知・音声）
         new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA').play();
+        const mins = Math.max(0, Math.round(totalSeconds/60));
+        notifyUser('セッション終了', `${mins}分経過しました。お疲れさま！`);
         resetTimer();
       }
     },1000);
@@ -216,7 +234,7 @@
   function stopTimer(){ if(!isRunning) return; isRunning=false; startStopBtn.textContent='スタート'; clearInterval(timerId); }
   function resetTimer(seconds=totalSeconds){
     stopTimer(); totalSeconds=seconds; currentTime=totalSeconds;
-    announced3mins=announced6mins=announced10mins=announced15mins=announced20mins=announced30mins=false;
+    announced3=announced6=announced10=announced15=announced20=false;
     updateDisplays();
   }
 
